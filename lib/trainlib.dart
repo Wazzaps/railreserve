@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:convert' as convert;
 import 'package:http/http.dart' as http;
 import 'package:sms/sms.dart';
@@ -89,7 +88,7 @@ class TrainSearchResult {
       }
     }
 
-    var request = _ChairsFuture(idx, 8, this.routes, this.trainTime);
+    var request = _ChairsFuture(idx - (idx % 8), 8, this.routes, this.trainTime);
     _requests.add(request);
     return (await request.future)[idx - request.startIdx];
   }
@@ -154,6 +153,7 @@ String getStationNameById(String stationId) {
       return _stations[i]['Heb'];
     }
   }
+  return "N/A";
 }
 
 dynamic _createReservedTrain(dynamic train) {

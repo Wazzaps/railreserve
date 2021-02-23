@@ -1,26 +1,24 @@
 import 'dart:convert';
+import 'package:async/async.dart';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'main.dart';
 
-import 'package:sms/sms.dart';
-
 import 'trainlib.dart' as trainlib;
 
 const reserve_destination = Destination('הזמנה', Icons.train);
 
 class Stations {
-  static var _stations;
-  static dynamic getStations(BuildContext context) async {
-    if (_stations == null) {
+  static AsyncMemoizer<dynamic> _stations = AsyncMemoizer();
+  static Future<dynamic> getStations(BuildContext context) {
+    return _stations.runOnce(() async {
       String data = await DefaultAssetBundle.of(context).loadString("assets/stations.json");
       final jsonResult = json.decode(data);
-      _stations = jsonResult;
-      trainlib.loadStations(_stations);
-    }
-    return _stations;
+      trainlib.loadStations(jsonResult);
+      return jsonResult;
+    });
   }
 }
 
@@ -72,12 +70,11 @@ class ReserveConfigurator extends StatefulWidget {
 }
 
 class _ReserveConfiguratorState extends State<ReserveConfigurator> {
-  String _fromStationId = "2200";
-  String _toStationId = "3700";
   DateTime _date = DateTime.now();
   TimeOfDay _time = TimeOfDay.now();
   bool _timeChanged = false;
   bool _isArrival = false;
+  GlobalKey<_StationSelectorsState> stationSelectors = GlobalKey();
 
   @override
   void initState() {
@@ -108,38 +105,7 @@ class _ReserveConfiguratorState extends State<ReserveConfigurator> {
                       child: Column(
                         children: [
                           // Station pickers
-                          Column(
-                            children: [
-                              StationSelector(
-                                value: this._fromStationId,
-                                onChanged: (String newValue) {
-                                  setState(() {
-                                    this._fromStationId = newValue;
-                                    print("from = $_fromStationId");
-                                  });
-                                },
-                              ),
-                              IconButton(
-                                  tooltip: "החלף תחנות",
-                                  onPressed: () {
-                                    setState(() {
-                                      String temp = this._toStationId;
-                                      this._toStationId = this._fromStationId;
-                                      this._fromStationId = temp;
-                                    });
-                                  },
-                                  icon: Icon(Icons.swap_vert)),
-                              StationSelector(
-                                value: this._toStationId,
-                                onChanged: (String newValue) {
-                                  setState(() {
-                                    this._toStationId = newValue;
-                                    print("to = $_toStationId");
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
+                          StationSelectors(key: stationSelectors),
 
                           // Time & Date pickers
                           Padding(
@@ -238,8 +204,8 @@ class _ReserveConfiguratorState extends State<ReserveConfigurator> {
                                   context,
                                   "/trainSearch",
                                   arguments: SearchResultsArgs(
-                                    srcStationId: this._fromStationId,
-                                    dstStationId: this._toStationId,
+                                    srcStationId: this.stationSelectors.currentState.fromStationId,
+                                    dstStationId: this.stationSelectors.currentState.toStationId,
                                     trainTime:
                                         this._date.add(Duration(hours: this._time.hour, minutes: this._time.minute)),
                                     isArrivalTime: this._isArrival,
@@ -270,6 +236,101 @@ class _ReserveConfiguratorState extends State<ReserveConfigurator> {
   }
 }
 
+class StationSelectors extends StatefulWidget {
+  const StationSelectors({Key key}) : super(key: key);
+
+  @override
+  _StationSelectorsState createState() => _StationSelectorsState();
+}
+
+class _StationSelectorsState extends State<StationSelectors> {
+  String fromStationId;
+  String toStationId;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: () async {
+        var prefs = await SharedPreferences.getInstance();
+        var isSetup = false;
+        try {
+          this.fromStationId = prefs.getString("fromStationId");
+          if (this.fromStationId == null) {
+            this.fromStationId = "2200";
+          }
+        } catch (_) {}
+        try {
+          this.toStationId = prefs.getString("toStationId");
+          if (this.toStationId == null) {
+            this.toStationId = "3700";
+          }
+        } catch (_) {}
+
+        try {
+          if (prefs.getString("mobileNo") != null && prefs.getString("nationalId") != null) {
+            isSetup = true;
+          }
+        } catch (_) {}
+        return [prefs, isSetup];
+      }(),
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          var prefs = snapshot.data[0];
+          var isSetup = snapshot.data[1];
+          if (isSetup) {
+            return Column(
+              children: [
+                StationSelector(
+                  value: this.fromStationId,
+                  onChanged: (String newValue) {
+                    setState(() {
+                      this.fromStationId = newValue;
+                      print("from = $fromStationId");
+                      prefs.setString("fromStationId", this.fromStationId);
+                    });
+                  },
+                ),
+                IconButton(
+                    tooltip: "החלף תחנות",
+                    onPressed: () {
+                      setState(() {
+                        String temp = this.toStationId;
+                        this.toStationId = this.fromStationId;
+                        this.fromStationId = temp;
+                        prefs.setString("toStationId", this.toStationId);
+                        prefs.setString("fromStationId", this.fromStationId);
+                      });
+                    },
+                    icon: Icon(Icons.swap_vert)),
+                StationSelector(
+                  value: this.toStationId,
+                  onChanged: (String newValue) {
+                    setState(() {
+                      this.toStationId = newValue;
+                      print("to = $toStationId");
+                      prefs.setString("toStationId", this.toStationId);
+                    });
+                  },
+                ),
+              ],
+            );
+          } else {
+            return Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'נא להכניס פרטים ב"הגדרות"',
+                textDirection: TextDirection.rtl,
+                textScaleFactor: 1.2,
+              ),
+            );
+          }
+        }
+        return CircularProgressIndicator();
+      },
+    );
+  }
+}
+
 class SearchResults extends StatefulWidget {
   const SearchResults(this.args, {Key key, this.ticketReservedCb}) : super(key: key);
 
@@ -282,6 +343,7 @@ class SearchResults extends StatefulWidget {
 
 class _SearchResultsState extends State<SearchResults> {
   ScrollController controller = ScrollController();
+  bool didScroll = false;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -301,6 +363,7 @@ class _SearchResultsState extends State<SearchResults> {
               var inner;
               if (data.hasData) {
                 inner = ListView.separated(
+                    controller: controller,
                     padding: const EdgeInsets.all(8),
                     itemCount: data.data.routes.length,
                     separatorBuilder: (context, idx) => Divider(
@@ -314,9 +377,16 @@ class _SearchResultsState extends State<SearchResults> {
                       final estTime = route["EstTime"].split(":").sublist(0, 2).join(":");
                       final seats = data.data.getChairs(index);
                       return ListTile(
-                        title: Text(
-                          '(~$estTime)  $arriveTime ← $departTime',
-                          textAlign: TextAlign.right,
+                        title: Row(
+                          textDirection: TextDirection.rtl,
+                          children: [
+                            Text('$departTime'),
+                            Icon(
+                              Icons.chevron_left_rounded,
+                              size: 18,
+                            ),
+                            Text('(~$estTime)   $arriveTime'),
+                          ],
                         ),
                         subtitle: FutureBuilder(
                             future: seats,
@@ -359,8 +429,29 @@ class _SearchResultsState extends State<SearchResults> {
                         },
                       );
                     });
+
+                if (!didScroll) {
+                  Future.delayed(Duration.zero, () {
+                    int scrollIdx = 0;
+                    for (var i = 0; i < data.data.routes.length; i++) {
+                      var departTimeStr = data.data.routes[i]["Train"][0]["DepartureTime"];
+                      var departTime = DateTime(
+                          int.parse(departTimeStr.substring(6, 10)),
+                          int.parse(departTimeStr.substring(3, 5)),
+                          int.parse(departTimeStr.substring(0, 2)),
+                          int.parse(departTimeStr.substring(11, 13)),
+                          int.parse(departTimeStr.substring(14, 16)));
+                      if (departTime.isAfter(widget.args.trainTime)) {
+                        scrollIdx = i;
+                        break;
+                      }
+                    }
+                    controller.jumpTo(80.0 * scrollIdx);
+                  });
+                  didScroll = true;
+                }
               } else {
-                inner = Text(".");
+                inner = Text("");
               }
               return AnimatedCrossFade(
                 duration: Duration(milliseconds: 200),
