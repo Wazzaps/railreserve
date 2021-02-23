@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "name": "railreserve (Flutter)",
+            "program": "lib/main.dart",
+            "request": "launch",
+            "type": "dart",
+        },
+        {
+            "name": "railreserve (Flutter Release)",
+            "program": "lib/main.dart",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        },
+        {
+            "name": "railreserve (Flutter Profile)",
+            "program": "lib/main.dart",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        }
+    ]
+}
