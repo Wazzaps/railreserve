@@ -262,7 +262,7 @@ class _StationSelectorsState extends State<StationSelectors> {
         try {
           this.toStationId = prefs.getString("toStationId");
           if (this.toStationId == null) {
-            this.toStationId = "3700";
+            this.toStationId = "3600";
           }
         } catch (_) {}
 
@@ -721,10 +721,12 @@ class StationSelector extends StatelessWidget {
       future: Stations.getStations(context),
       builder: (BuildContext context, AsyncSnapshot<dynamic> stations) {
         if (stations.hasData) {
+          var sorted = stations.data.toList();
+          sorted.sort((a, b) => (a["Heb"].compareTo(b["Heb"]) as int));
           return DropdownButton(
             value: this.value,
             onChanged: this.onChanged,
-            items: stations.data.map<DropdownMenuItem<String>>((station) {
+            items: sorted.map<DropdownMenuItem<String>>((station) {
               return DropdownMenuItem<String>(
                 value: station["Id"],
                 child: Text(
