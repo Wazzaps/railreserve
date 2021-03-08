@@ -206,8 +206,8 @@ class _ReserveConfiguratorState extends State<ReserveConfigurator> {
                                   arguments: SearchResultsArgs(
                                     srcStationId: this.stationSelectors.currentState.fromStationId,
                                     dstStationId: this.stationSelectors.currentState.toStationId,
-                                    trainTime:
-                                        this._date.add(Duration(hours: this._time.hour, minutes: this._time.minute)),
+                                    trainTime: DateTime(this._date.year, this._date.month, this._date.day)
+                                        .add(Duration(hours: this._time.hour, minutes: this._time.minute)),
                                     isArrivalTime: this._isArrival,
                                   ),
                                 );
